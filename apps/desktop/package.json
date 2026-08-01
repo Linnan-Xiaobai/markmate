@@ -1,0 +1,123 @@
+{
+  "name": "@markmate/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MarkMate - Professional Markdown Editor Desktop App",
+  "main": "dist-electron/main.js",
+  "author": "MarkMate Team",
+  "license": "MIT",
+  "scripts": {
+    "dev": "vite",
+    "dev:web": "vite --config vite.config.ts",
+    "build:renderer": "tsc --noEmit && vite build",
+    "build:electron": "node build-electron.cjs",
+    "build:unpack": "npm run build:renderer && npm run build:electron && electron-builder --dir",
+    "build:win": "npm run build:renderer && npm run build:electron && electron-builder --win",
+    "build": "npm run build:win",
+    "build:portable": "npm run build:renderer && npm run build:electron && electron-builder --win portable",
+    "clean": "node -e \"const fs=require('fs');['dist','dist-electron','release','node_modules/.vite'].forEach(d=>{try{fs.rmSync(d,{recursive:true,force:true});console.log('[clean] removed:',d)}catch(e){}});console.log('[clean] done')\"",
+    "rebuild": "npm run clean && npm install",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "start": "electron ."
+  },
+  "dependencies": {
+    "@codemirror/lang-markdown": "^6.3.0",
+    "@codemirror/language-data": "^6.5.1",
+    "@codemirror/search": "^6.7.1",
+    "@codemirror/state": "^6.4.1",
+    "@codemirror/theme-one-dark": "^6.1.2",
+    "@codemirror/view": "^6.28.0",
+    "codemirror": "^6.0.1",
+    "dompurify": "^3.1.6",
+    "highlight.js": "^11.11.1",
+    "katex": "^0.16.11",
+    "marked": "^12.0.2",
+    "marked-katex-extension": "^5.1.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "zustand": "^4.5.2"
+  },
+  "devDependencies": {
+    "@types/dompurify": "^3.0.5",
+    "@types/katex": "^0.16.7",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "autoprefixer": "^10.4.19",
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3",
+    "postcss": "^8.4.38",
+    "tailwindcss": "^3.4.4",
+    "typescript": "^5.4.5",
+    "vite": "^5.3.1",
+    "vite-plugin-electron": "^0.28.7",
+    "vite-plugin-electron-renderer": "^0.14.5"
+  },
+  "build": {
+    "appId": "com.markmate.app",
+    "productName": "MarkMate",
+    "copyright": "Copyright © 2026 MarkMate Team",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "package.json"
+    ],
+    "asar": true,
+    "compression": "maximum",
+    "forceCodeSigning": false,
+    "fileAssociations": [
+      {
+        "ext": "md",
+        "name": "Markdown Document",
+        "description": "Markdown 文档",
+        "role": "Editor",
+        "mimeType": "text/markdown"
+      },
+      {
+        "ext": "markdown",
+        "name": "Markdown Document",
+        "description": "Markdown 文档",
+        "role": "Editor",
+        "mimeType": "text/markdown"
+      },
+      {
+        "ext": "txt",
+        "name": "Text Document",
+        "description": "文本文档",
+        "role": "Editor",
+        "mimeType": "text/plain"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "MarkMate-Setup-${version}.${ext}",
+      "signAndEditExecutable": false,
+      "verifyUpdateCodeSignature": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "MarkMate",
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false,
+      "include": "build/installer.nsh"
+    },
+    "portable": {
+      "artifactName": "MarkMate-Portable-${version}.${ext}"
+    }
+  }
+}
