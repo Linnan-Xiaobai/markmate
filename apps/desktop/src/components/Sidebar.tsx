@@ -212,6 +212,13 @@ export function Sidebar() {
     }
   }, [setCurrentFolder, loadFolderChildren]);
 
+  const handleOpenFile = useCallback(async () => {
+    const filePath = await window.markmate.dialog.openFile();
+    if (filePath) {
+      openFile(filePath);
+    }
+  }, [openFile]);
+
   // Recursive render function
   const renderNodes = useCallback((nodes: FileNode[], depth: number, activePath: string | null): React.ReactNode => {
     return nodes.map((node) => {
@@ -274,17 +281,30 @@ export function Sidebar() {
           </button>
         </div>
         {sidebarTab === 'files' && (
-          <button
-            onClick={handleOpenFolder}
-            className="w-6 h-6 flex items-center justify-center text-subtext0 hover:text-text hover:bg-surface0 rounded transition-colors"
-            title="打开文件夹"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-              <line x1="12" y1="11" x2="12" y2="17" />
-              <line x1="9" y1="14" x2="15" y2="14" />
-            </svg>
-          </button>
+          <div className="flex items-center gap-0.5">
+            <button
+              onClick={handleOpenFile}
+              className="w-6 h-6 flex items-center justify-center text-subtext0 hover:text-text hover:bg-surface0 rounded transition-colors"
+              title="打开文件"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+                <path d="M9 15l2 2 4-4" />
+              </svg>
+            </button>
+            <button
+              onClick={handleOpenFolder}
+              className="w-6 h-6 flex items-center justify-center text-subtext0 hover:text-text hover:bg-surface0 rounded transition-colors"
+              title="打开文件夹"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                <line x1="12" y1="11" x2="12" y2="17" />
+                <line x1="9" y1="14" x2="15" y2="14" />
+              </svg>
+            </button>
+          </div>
         )}
       </div>
 
@@ -315,13 +335,21 @@ export function Sidebar() {
           </div>
         ) : (
           <div className="px-4 py-8 text-center">
-            <div className="text-subtext0 text-sm mb-3">还没有打开文件夹</div>
-            <button
-              onClick={handleOpenFolder}
-              className="px-3 py-1.5 bg-surface0 text-text text-sm rounded hover:bg-surface1 transition-colors"
-            >
-              打开文件夹
-            </button>
+            <div className="text-subtext0 text-sm mb-3">还没有打开文件或文件夹</div>
+            <div className="flex flex-col gap-2 items-center">
+              <button
+                onClick={handleOpenFile}
+                className="px-3 py-1.5 bg-surface0 text-text text-sm rounded hover:bg-surface1 transition-colors w-32"
+              >
+                打开文件
+              </button>
+              <button
+                onClick={handleOpenFolder}
+                className="px-3 py-1.5 bg-surface0 text-text text-sm rounded hover:bg-surface1 transition-colors w-32"
+              >
+                打开文件夹
+              </button>
+            </div>
           </div>
         )}
       </div>

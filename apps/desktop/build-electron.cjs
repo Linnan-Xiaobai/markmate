@@ -22,7 +22,7 @@ esbuild.buildSync({
   outfile: path.join(outDir, 'main.js'),
   format: 'cjs',
   platform: 'node',
-  target: 'node18',
+  target: 'node22',
   external: ['electron'],
   alias: workspaceAlias,
   minify: true,
@@ -35,7 +35,7 @@ esbuild.buildSync({
   outfile: path.join(outDir, 'preload.js'),
   format: 'cjs',
   platform: 'node',
-  target: 'node18',
+  target: 'node22',
   external: ['electron'],
   minify: true,
 });

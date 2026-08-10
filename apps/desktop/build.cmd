@@ -2,8 +2,13 @@
 chcp 65001 >nul 2>&1
 title MarkMate - Build Production Installer
 
+:: Usage: build.cmd [--ci]
+::   --ci    headless mode: skip pause and explorer, exit with code only
+set "CI_MODE=0"
+if /i "%~1"=="--ci" set "CI_MODE=1"
+
 echo ============================================
-echo   MarkMate - Production Build
+echo   MarkMate - Production Build (NSIS)
 echo ============================================
 echo.
 
@@ -19,90 +24,78 @@ if not exist node_modules (
 set ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/
 set ELECTRON_BUILDER_BINARIES_MIRROR=https://npmmirror.com/mirrors/electron-builder-binaries/
 
+:: Read version from package.json (single source of truth)
+for /f %%v in ('powershell -NoProfile -Command "(Get-Content package.json -Raw | ConvertFrom-Json).version"') do set "APP_VERSION=%%v"
+if not defined APP_VERSION (
+    echo [ERROR] Failed to read version from package.json
+    exit /b 1
+)
+echo [INFO] App version: %APP_VERSION%
+
 :: Use a temp directory outside the project to avoid IDE file watcher locks
-set "BUILD_TEMP=%TEMP%\markmate-build-%RANDOM%"
+set "BUILD_TEMP=%TEMP%\markmate-build-%RANDOM%%RANDOM%"
 echo [INFO] Build output (temp): %BUILD_TEMP%
 echo.
 
-:: Clean previous local release dir
+:: Clean previous build artifacts (dist/dist-electron/release/vite cache)
 echo [INFO] Cleaning previous build artifacts...
-if exist dist rmdir /s /q dist
-if exist dist-electron rmdir /s /q dist-electron
-echo [OK] Cleaned dist/dist-electron
+call npm run clean
+if %errorlevel% neq 0 exit /b 1
 echo.
 
 echo ============================================
-echo   Step 1/3: Type checking
+echo   Build: typecheck + renderer + main + NSIS
 echo ============================================
-call npx tsc --noEmit
-if %errorlevel% neq 0 (
-    echo.
-    echo [ERROR] TypeScript type checking failed.
-    echo Please fix the type errors above before building.
-    pause
-    exit /b 1
-)
-echo [OK] Type checking passed
 echo.
-
-echo ============================================
-echo   Step 2/3: Building renderer and electron
-echo ============================================
-call npx vite build
-if %errorlevel% neq 0 (
-    echo.
-    echo [ERROR] Vite build failed.
-    pause
-    exit /b 1
-)
-echo [OK] Build completed
-echo.
-
-echo ============================================
-echo   Step 3/3: Packaging with electron-builder
-echo ============================================
-echo [INFO] Building NSIS installer for Windows x64...
-echo.
-
-call npx electron-builder --win --x64 --config.directories.output="%BUILD_TEMP%"
+call npm run build:win -- --config.directories.output="%BUILD_TEMP%"
 
 if %errorlevel% neq 0 (
     echo.
-    echo [ERROR] electron-builder packaging failed.
+    echo [ERROR] Build failed.
     echo.
     echo Troubleshooting:
-    echo   1. Run this script as Administrator (right-click ^> Run as administrator).
-    echo   2. Enable Windows Developer Mode (Settings -^> Update ^& Security -^> For developers).
+    echo   1. Run this script as Administrator ^(right-click -^> Run as administrator^).
+    echo   2. Enable Windows Developer Mode ^(Settings -^> Update ^& Security -^> For developers^).
     echo   3. Temporarily disable antivirus real-time protection.
     echo   4. Close any running MarkMate instances.
     echo.
-    pause
+    rmdir /s /q "%BUILD_TEMP%" 2>nul
+    if "%CI_MODE%"=="0" pause
     exit /b 1
 )
 
-:: Copy results back to release directory
+:: Copy results back to release directory.
+:: robocopy /MIR mirrors temp -> release (deletes stale files) and retries
+:: locked files, which survives transient locks from antivirus/IDE indexing.
 echo.
 echo [INFO] Copying artifacts to release directory...
-if exist release rmdir /s /q release
-mkdir release
-xcopy "%BUILD_TEMP%\*.exe" "release\" /Y /Q >nul 2>&1
-xcopy "%BUILD_TEMP%\win-unpacked" "release\win-unpacked\" /E /I /Y /Q >nul 2>&1
+robocopy "%BUILD_TEMP%" "release" /MIR /R:3 /W:2 /NFL /NDL /NJH /NJS
+if %errorlevel% geq 8 goto copy_failed
+goto copy_done
+
+:copy_failed
+echo.
+echo [ERROR] Copying artifacts failed ^(robocopy exit code %errorlevel%^).
+echo A file in release\ is locked by another process ^(MarkMate running, antivirus scan^).
+echo Close it and run this script again.
+rmdir /s /q "%BUILD_TEMP%" 2>nul
+if "%CI_MODE%"=="0" pause
+exit /b 1
+
+:copy_done
+rmdir /s /q "%BUILD_TEMP%" 2>nul
 echo [OK] Artifacts copied to release\
 echo.
-
-:: Clean temp build directory
-rmdir /s /q "%BUILD_TEMP%" 2>nul
 
 echo ============================================
 echo   Build Complete!
 echo ============================================
 echo.
 echo Installer location:
-echo   %~dp0release\MarkMate-Setup-0.1.0.exe
+echo   %~dp0release\MarkMate-Setup-%APP_VERSION%.exe
 echo.
 
-:: Open release folder in Explorer
-explorer "%~dp0release"
-
-echo.
-pause
+if "%CI_MODE%"=="0" (
+    explorer "%~dp0release"
+    pause
+)

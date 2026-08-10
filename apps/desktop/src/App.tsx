@@ -102,6 +102,10 @@ function AppContent() {
       openFolder(folderPath);
     };
 
+    const handleFileNew = () => {
+      newTab('# 新文档\n\n开始编写...\n');
+    };
+
     const handleFileSave = () => {
       saveFile();
     };
@@ -118,10 +122,18 @@ function AppContent() {
       }
 
       // Ctrl+O: Open file
-      if ((e.ctrlKey || e.metaKey) && e.key === 'o') {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'o' && !e.shiftKey) {
         e.preventDefault();
         window.markmate.dialog.openFile().then((filePath) => {
           if (filePath) openFile(filePath);
+        });
+      }
+
+      // Ctrl+Shift+O: Open folder
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'O' || e.key === 'o')) {
+        e.preventDefault();
+        window.markmate.dialog.openFolder().then((folderPath) => {
+          if (folderPath) openFolder(folderPath);
         });
       }
 
@@ -160,6 +172,7 @@ function AppContent() {
 
     const unsubFileOpen = window.markmate.on.fileOpen(handleFileOpen);
     const unsubFolderOpen = window.markmate.on.folderOpen(handleFolderOpen);
+    const unsubFileNew = window.markmate.on.fileNew(handleFileNew);
     const unsubSave = window.markmate.on.fileSave(handleFileSave);
     const unsubSaveAs = window.markmate.on.fileSaveAs(handleFileSaveAs);
 
@@ -168,11 +181,12 @@ function AppContent() {
     return () => {
       unsubFileOpen();
       unsubFolderOpen();
+      unsubFileNew();
       unsubSave();
       unsubSaveAs();
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [tabs, activeTabId, openFile, saveFile, saveFileAs, newTab, closeActiveTab, toggleSidebar, openSettings, setActiveTab]);
+  }, [tabs, activeTabId, openFile, openFolder, saveFile, saveFileAs, newTab, closeActiveTab, toggleSidebar, openSettings, setActiveTab]);
 
   const showEditor = viewMode === 'edit' || viewMode === 'split';
   const showPreview = viewMode === 'preview' || viewMode === 'split';

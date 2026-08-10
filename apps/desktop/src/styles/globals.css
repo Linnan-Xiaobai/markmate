@@ -109,10 +109,14 @@
 
   .cm-editor {
     height: 100% !important;
-    font-size: 14px !important;
-    font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace !important;
     background-color: var(--color-base) !important;
     color: var(--color-text) !important;
+    /* font-size / font-family / line-height are driven by the CodeMirror
+       theme compartment so Ctrl+wheel zoom can persist across reloads. */
+    font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+    overflow: hidden;
+    -webkit-user-select: text;
+    user-select: text;
   }
 
   .cm-editor.cm-focused {
@@ -122,43 +126,38 @@
   .cm-scroller {
     overflow: auto !important;
     padding: 16px !important;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-surface1) transparent;
+    /* Let touchpad / trackpad scroll smoothly, wheel scroll is immediate */
+    scroll-behavior: smooth;
   }
 
-  .cm-gutters {
-    background-color: var(--color-mantle) !important;
-    border-right: 1px solid var(--color-surface0) !important;
-    color: var(--color-overlay0) !important;
+  .cm-scroller::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
   }
 
-  .cm-activeLineGutter {
-    background-color: var(--color-surface0) !important;
+  .cm-scroller::-webkit-scrollbar-track {
+    background: transparent;
   }
 
-  .cm-activeLine {
-    background-color: rgba(49, 50, 68, 0.3) !important;
+  .cm-scroller::-webkit-scrollbar-thumb {
+    background: var(--color-surface1);
+    border-radius: 5px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
   }
 
-  [data-theme="light"] .cm-activeLine {
-    background-color: rgba(204, 208, 218, 0.5) !important;
-  }
-
-  .cm-selectionBackground,
-  .cm-focused .cm-selectionBackground {
-    background-color: var(--color-surface1) !important;
-  }
-
-  .cm-cursor {
-    border-left-color: var(--color-rosewater) !important;
-    border-left-width: 2px !important;
-  }
-
-  .cm-matchingBracket {
-    background-color: rgba(137, 180, 250, 0.2) !important;
-    outline: 1px solid var(--color-blue) !important;
+  .cm-scroller::-webkit-scrollbar-thumb:hover {
+    background: var(--color-surface2);
+    background-clip: padding-box;
+    border: 2px solid transparent;
   }
 
   .cm-content {
     caret-color: var(--color-rosewater) !important;
+    min-height: 100%;
   }
 
   .markdown-preview {
@@ -657,5 +656,247 @@
   .markdown-preview .katex-error {
     color: var(--color-red);
     word-break: break-all;
+  }
+
+  /* Mermaid diagram styling - Trae-like experience */
+  .markdown-preview .mermaid-diagram-wrapper {
+    margin: 1.5em 0;
+  }
+
+  .mermaid-diagram-container {
+    position: relative;
+    background: var(--color-mantle);
+    border: 1px solid var(--color-surface0);
+    border-radius: 8px;
+    overflow: hidden;
+    transition: border-color 0.2s;
+  }
+
+  .mermaid-diagram-container:hover {
+    border-color: var(--color-surface2);
+  }
+
+  /* Top toolbar */
+  .mermaid-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 10px;
+    background: var(--color-crust);
+    border-bottom: 1px solid var(--color-surface0);
+    font-size: 12px;
+    user-select: none;
+  }
+
+  .mermaid-toolbar-left {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .mermaid-lang-label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--color-overlay0);
+    font-weight: 500;
+    font-size: 12px;
+    cursor: default;
+  }
+
+  .mermaid-chevron {
+    opacity: 0.6;
+  }
+
+  .mermaid-toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .mermaid-toolbar-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: var(--color-overlay1);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .mermaid-toolbar-btn:hover {
+    background: var(--color-surface0);
+    color: var(--color-text);
+  }
+
+  /* SVG content area */
+  .mermaid-svg-container {
+    position: relative;
+    min-height: 100px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    background: var(--color-base);
+    padding: 24px 16px;
+  }
+
+  .mermaid-svg-container.dragging {
+    user-select: none;
+  }
+
+  .mermaid-svg-content {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transform-origin: center center;
+    transition: transform 0.1s ease-out;
+  }
+
+  .mermaid-svg-content svg {
+    max-width: 100%;
+    height: auto;
+  }
+
+  /* Error display */
+  .mermaid-error-display {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 24px;
+    text-align: center;
+    color: var(--color-red);
+  }
+
+  .mermaid-error-icon {
+    margin-bottom: 12px;
+    opacity: 0.8;
+  }
+
+  .mermaid-error-title {
+    font-weight: 600;
+    font-size: 14px;
+    margin-bottom: 8px;
+  }
+
+  .mermaid-error-message {
+    font-size: 12px;
+    opacity: 0.8;
+    margin-bottom: 12px;
+  }
+
+  .mermaid-error-code {
+    font-size: 11px;
+    padding: 8px 12px;
+    background: var(--color-mantle);
+    border-radius: 4px;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    white-space: pre-wrap;
+    text-align: left;
+    max-width: 100%;
+    overflow-x: auto;
+    opacity: 0.7;
+  }
+
+  /* Zoom controls - bottom right */
+  .mermaid-zoom-controls {
+    position: absolute;
+    right: 10px;
+    bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 4px;
+    background: var(--color-crust);
+    border: 1px solid var(--color-surface0);
+    border-radius: 6px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    backdrop-filter: blur(8px);
+    opacity: 0;
+    transition: opacity 0.2s;
+    z-index: 10;
+  }
+
+  .mermaid-diagram-container:hover .mermaid-zoom-controls {
+    opacity: 1;
+  }
+
+  .mermaid-zoom-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: var(--color-subtext0);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .mermaid-zoom-btn:hover {
+    background: var(--color-surface0);
+    color: var(--color-text);
+  }
+
+  .mermaid-zoom-divider {
+    width: 1px;
+    height: 16px;
+    background: var(--color-surface0);
+    margin: 0 2px;
+  }
+
+  .mermaid-zoom-level {
+    font-size: 11px;
+    color: var(--color-subtext0);
+    min-width: 38px;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    user-select: none;
+  }
+
+  /* Fullscreen mode */
+  .mermaid-fullscreen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 9999;
+    border-radius: 0;
+    border: none;
+  }
+
+  .mermaid-fullscreen .mermaid-svg-container {
+    height: calc(100vh - 37px);
+    padding: 40px;
+  }
+
+  .mermaid-fullscreen .mermaid-zoom-controls {
+    opacity: 1;
+  }
+
+  /* Mermaid SVG dark/light theme tuning */
+  [data-theme="dark"] .mermaid-svg-content svg {
+    --mermaid-bg: var(--color-base);
+    --mermaid-node: var(--color-surface0);
+    --mermaid-node-stroke: var(--color-green);
+    --mermaid-text: var(--color-text);
+    --mermaid-line: var(--color-surface2);
+  }
+
+  [data-theme="light"] .mermaid-svg-content svg {
+    --mermaid-bg: var(--color-base);
+    --mermaid-node: var(--color-surface0);
+    --mermaid-node-stroke: var(--color-green);
+    --mermaid-text: var(--color-text);
+    --mermaid-line: var(--color-surface2);
   }
 }

@@ -2,12 +2,28 @@ import { memo, useCallback } from 'react';
 import { useTabsStore, type ViewMode } from '@/store/use-tabs-store';
 import { useConfigStore } from '@/store/use-config-store';
 
+const MenuIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="3" y1="6" x2="21" y2="6" />
+    <line x1="3" y1="12" x2="21" y2="12" />
+    <line x1="3" y1="18" x2="21" y2="18" />
+  </svg>
+);
+
 const NewFileIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
     <polyline points="14 2 14 8 20 8" />
     <line x1="12" y1="18" x2="12" y2="12" />
     <line x1="9" y1="15" x2="15" y2="15" />
+  </svg>
+);
+
+const OpenFileIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+    <polyline points="14 2 14 8 20 8" />
+    <path d="M9 15l2 2 4-4" />
   </svg>
 );
 
@@ -94,6 +110,7 @@ export function Toolbar() {
   const setViewMode = useTabsStore((s) => s.setViewMode);
   const toggleSidebar = useTabsStore((s) => s.toggleSidebar);
   const saveFile = useTabsStore((s) => s.saveFile);
+  const openFile = useTabsStore((s) => s.openFile);
   const sidebarOpen = useTabsStore((s) => s.sidebarOpen);
   const openSettings = useConfigStore((s) => s.openSettings);
 
@@ -101,14 +118,44 @@ export function Toolbar() {
     useTabsStore.getState().newTab('# 新文档\n\n开始编写...\n');
   }, []);
 
+  const handleOpenFile = useCallback(async () => {
+    const filePath = await window.markmate.dialog.openFile();
+    if (filePath) {
+      openFile(filePath);
+    }
+  }, [openFile]);
+
+  const handleMenuClick = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    window.markmate.app.popupMenu(rect.left, rect.bottom + 4);
+  }, []);
+
   return (
     <div className="h-10 bg-mantle border-b border-surface0 flex items-center px-2 gap-1">
+      <button
+        onClick={handleMenuClick}
+        className="w-8 h-8 flex items-center justify-center rounded text-subtext0 hover:bg-surface0 hover:text-text transition-colors"
+        title="菜单"
+      >
+        <MenuIcon />
+      </button>
+
+      <div className="w-px h-5 bg-surface0 mx-0.5" />
+
       <button
         onClick={handleNewFile}
         className="w-8 h-8 flex items-center justify-center rounded text-subtext0 hover:bg-surface0 hover:text-text transition-colors"
         title="新建文件 (Ctrl+N)"
       >
         <NewFileIcon />
+      </button>
+
+      <button
+        onClick={handleOpenFile}
+        className="w-8 h-8 flex items-center justify-center rounded text-subtext0 hover:bg-surface0 hover:text-text transition-colors"
+        title="打开文件 (Ctrl+O)"
+      >
+        <OpenFileIcon />
       </button>
 
       <button

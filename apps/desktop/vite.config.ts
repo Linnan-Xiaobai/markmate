@@ -59,13 +59,14 @@ export default defineConfig({
   server: {
     port: 5173,
     strictPort: true,
+    host: '127.0.0.1',
   },
   build: {
     outDir: 'dist',
     emptyOutDir: true,
     sourcemap: false,
     minify: 'esbuild',
-    target: 'chrome114',
+    target: 'chrome130',
     chunkSizeWarningLimit: 1000,
     rollupOptions: {
       output: {
@@ -82,6 +83,8 @@ export default defineConfig({
             '@codemirror/theme-one-dark',
           ],
           'markdown-render': ['marked', 'dompurify'],
+          'katex': ['katex', 'marked-katex-extension'],
+          'highlight': ['highlight.js'],
           'zustand': ['zustand'],
         },
       },

@@ -87,6 +87,8 @@ const markmateAPI = {
       ipcRenderer.invoke('app:set-theme', theme),
     getMemoryInfo: (): Promise<MemoryInfo> => ipcRenderer.invoke('app:get-memory-info'),
     triggerGC: (): Promise<void> => ipcRenderer.invoke('app:trigger-gc'),
+    popupMenu: (x: number, y: number): Promise<void> =>
+      ipcRenderer.invoke('menu:popup', x, y),
     onMemoryPressure: (callback: (info: MemoryPressureInfo) => void) => {
       const listener = (_: unknown, info: MemoryPressureInfo) => callback(info);
       ipcRenderer.on('app:memory-pressure', listener);
@@ -130,6 +132,11 @@ const markmateAPI = {
       const listener = (_: unknown, folderPath: string) => callback(folderPath);
       ipcRenderer.on('folder:open', listener);
       return () => ipcRenderer.removeListener('folder:open', listener);
+    },
+    fileNew: (callback: () => void) => {
+      const listener = () => callback();
+      ipcRenderer.on('file:new', listener);
+      return () => ipcRenderer.removeListener('file:new', listener);
     },
     fileSave: (callback: () => void) => {
       const listener = () => callback();

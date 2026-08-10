@@ -22,6 +22,7 @@ if (typeof window !== 'undefined' && !window.markmate) {
       setTheme: async () => 'dark',
       getMemoryInfo: async () => ({ heapUsed: 0, heapTotal: 0, rss: 0, external: 0 }),
       triggerGC: async () => {},
+      popupMenu: async () => {},
       onMemoryPressure: () => () => {},
       notifySavedForClose: () => {},
     },
@@ -119,6 +120,7 @@ if (typeof window !== 'undefined' && !window.markmate) {
     on: {
       fileOpen: () => () => {},
       folderOpen: () => () => {},
+      fileNew: () => () => {},
       fileSave: () => () => {},
       fileSaveAs: () => () => {},
     },

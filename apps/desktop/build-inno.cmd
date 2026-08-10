@@ -2,6 +2,11 @@
 chcp 65001 >nul 2>&1
 title MarkMate - Inno Setup Installer Builder
 
+:: Usage: build-inno.cmd [--ci]
+::   --ci    headless mode: skip pause and explorer, exit with code only
+set "CI_MODE=0"
+if /i "%~1"=="--ci" set "CI_MODE=1"
+
 echo ============================================
 echo   MarkMate - Inno Setup Installer Build
 echo ============================================
@@ -12,23 +17,22 @@ set SCRIPT_DIR=%~dp0
 cd /d "%SCRIPT_DIR%"
 
 :: Configuration
-set ISS_SCRIPT=build\markmate-minimal.iss
-set ISS_SCRIPT_FULL=build\markmate.iss
+set ISS_SCRIPT=build\markmate.iss
 set UNPACKED_DIR=release\win-unpacked
 set OUTPUT_DIR=release
 
-:: Auto-detect Inno Setup installation path
+:: Auto-detect Inno Setup installation path (6.x and 7.x, admin and
+:: per-user installs). NOTE: single-line form on purpose - any block
+:: containing ")" from "C:\Program Files (x86)" would break cmd parsing.
 set ISCC_PATH=
-if exist "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" (
-    set ISCC_PATH=C:\Program Files (x86)\Inno Setup 6\ISCC.exe
-) else if exist "C:\Program Files\Inno Setup 6\ISCC.exe" (
-    set ISCC_PATH=C:\Program Files\Inno Setup 6\ISCC.exe
-) else (
-    :: Try to find ISCC in PATH
-    where ISCC.exe >nul 2>&1
-    if %errorlevel% equ 0 (
-        set ISCC_PATH=ISCC.exe
-    )
+if exist "C:\Program Files\Inno Setup 7\ISCC.exe" set "ISCC_PATH=C:\Program Files\Inno Setup 7\ISCC.exe"
+if not defined ISCC_PATH if exist "C:\Program Files (x86)\Inno Setup 7\ISCC.exe" set "ISCC_PATH=C:\Program Files (x86)\Inno Setup 7\ISCC.exe"
+if not defined ISCC_PATH if exist "%LOCALAPPDATA%\Programs\Inno Setup 7\ISCC.exe" set "ISCC_PATH=%LOCALAPPDATA%\Programs\Inno Setup 7\ISCC.exe"
+if not defined ISCC_PATH if exist "C:\Program Files\Inno Setup 6\ISCC.exe" set "ISCC_PATH=C:\Program Files\Inno Setup 6\ISCC.exe"
+if not defined ISCC_PATH if exist "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" set "ISCC_PATH=C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+if not defined ISCC_PATH if exist "%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe" set "ISCC_PATH=%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe"
+if not defined ISCC_PATH (
+    where ISCC.exe >nul 2>&1 && set ISCC_PATH=ISCC.exe
 )
 
 :: Check if Inno Setup is installed
@@ -42,7 +46,7 @@ if "%ISCC_PATH%"=="" (
     echo installed to the default location:
     echo   C:\Program Files ^(x86^)\Inno Setup 6\
     echo.
-    pause
+    if "%CI_MODE%"=="0" pause
     exit /b 1
 )
 echo [OK] Found Inno Setup compiler: %ISCC_PATH%
@@ -56,42 +60,27 @@ if not exist node_modules (
     if %errorlevel% neq 0 exit /b 1
 )
 
+:: Read version from package.json (single source of truth)
+for /f %%v in ('powershell -NoProfile -Command "(Get-Content package.json -Raw | ConvertFrom-Json).version"') do set "APP_VERSION=%%v"
+if not defined APP_VERSION (
+    echo [ERROR] Failed to read version from package.json
+    exit /b 1
+)
+echo [INFO] App version: %APP_VERSION%
+echo.
+
 :: Check if unpacked directory exists
 if not exist "%UNPACKED_DIR%" (
     echo [INFO] win-unpacked directory not found. Building Electron app first...
     echo.
-    
-    echo ============================================
-    echo   Step 1/3: Type checking
-    echo ============================================
-    call npx tsc --noEmit
-    if %errorlevel% neq 0 (
-        echo.
-        echo [ERROR] TypeScript type checking failed.
-        pause
-        exit /b 1
-    )
-    echo [OK] Type checking passed
-    echo.
-    
-    echo ============================================
-    echo   Step 2/3: Building renderer and electron
-    echo ============================================
+
     set ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/
     set ELECTRON_BUILDER_BINARIES_MIRROR=https://npmmirror.com/mirrors/electron-builder-binaries/
-    call npx vite build
-    if %errorlevel% neq 0 (
-        echo [ERROR] Vite build failed.
-        pause
-        exit /b 1
-    )
-    echo [OK] Build completed
-    echo.
-    
+
     echo ============================================
-    echo   Step 3/3: Creating unpacked directory
+    echo   Build: typecheck + renderer + main + unpack
     echo ============================================
-    call npx electron-builder --dir --x64
+    call npm run build:unpack
     if %errorlevel% neq 0 (
         echo [ERROR] electron-builder --dir failed.
         echo.
@@ -99,7 +88,7 @@ if not exist "%UNPACKED_DIR%" (
         echo   1. Run as Administrator or enable Windows Developer Mode
         echo   2. Clear electron-builder cache: %%LOCALAPPDATA%%\electron-builder\Cache
         echo.
-        pause
+        if "%CI_MODE%"=="0" pause
         exit /b 1
     )
     echo [OK] Unpacked directory created
@@ -114,44 +103,19 @@ if not exist "%UNPACKED_DIR%\MarkMate.exe" (
     echo [ERROR] MarkMate.exe not found in %UNPACKED_DIR%!
     echo The unpacked directory may be corrupted.
     echo Try deleting release\ directory and running this script again.
-    pause
+    if "%CI_MODE%"=="0" pause
     exit /b 1
 )
 echo [OK] MarkMate.exe found.
 echo.
 
-:: Check for Python backend (optional)
-set PYTHON_BACKEND=dist-python\MarkMate-Backend
-if exist "%PYTHON_BACKEND%" (
-    echo [INFO] Python backend found at: %PYTHON_BACKEND%
-    echo        It will be included in the installer.
-    echo.
-) else (
-    echo [INFO] Python backend not found (optional - skipping).
-    echo        Run build-pyinstaller.cmd first to include Python backend.
-    echo.
-)
-
-:: Choose which ISS script to use
-set SELECTED_SCRIPT=%ISS_SCRIPT%
-if exist "build\icon.ico" (
-    if exist "build\WizardImage.bmp" (
-        if exist "build\WizardSmallImage.bmp" (
-            echo [INFO] Custom icons/images found - using full version.
-            set SELECTED_SCRIPT=%ISS_SCRIPT_FULL%
-        )
-    )
-)
-echo [INFO] Using script: %SELECTED_SCRIPT%
-echo.
-
-:: Compile installer with Inno Setup
+:: Compile installer with Inno Setup (version injected from package.json)
 echo ============================================
 echo   Compiling Inno Setup installer...
 echo ============================================
 echo.
 
-"%ISCC_PATH%" "%SELECTED_SCRIPT%"
+"%ISCC_PATH%" /DMyAppVersion=%APP_VERSION% "%ISS_SCRIPT%"
 
 if %errorlevel% neq 0 (
     echo.
@@ -162,7 +126,7 @@ if %errorlevel% neq 0 (
     echo   2. Close any running MarkMate or Explorer windows in release\
     echo   3. Make sure you have write permissions to %OUTPUT_DIR%
     echo.
-    pause
+    if "%CI_MODE%"=="0" pause
     exit /b 1
 )
 
@@ -172,19 +136,15 @@ echo   Inno Setup Build Complete!
 echo ============================================
 echo.
 echo Installer location:
-echo   %SCRIPT_DIR%%OUTPUT_DIR%
+echo   %SCRIPT_DIR%%OUTPUT_DIR%\MarkMate-Inno-Setup-%APP_VERSION%.exe
 echo.
 
 :: List generated files
 echo Generated files:
 dir /b "%OUTPUT_DIR%\MarkMate-Inno-Setup-*.exe" 2>nul
-if %errorlevel% neq 0 (
-    dir /b "%OUTPUT_DIR%\*.exe" 2>nul
+echo.
+
+if "%CI_MODE%"=="0" (
+    explorer "%SCRIPT_DIR%%OUTPUT_DIR%"
+    pause
 )
-echo.
-
-:: Open release folder
-explorer "%SCRIPT_DIR%%OUTPUT_DIR%"
-
-echo.
-pause

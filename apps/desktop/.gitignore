@@ -5,6 +5,13 @@ node_modules/
 dist/
 dist-electron/
 release/
+dist-release/
+dist-python/
+
+# Python (legacy backend scaffolding removed)
+venv/
+python/
+build/pyinstaller-build/
 
 # Logs
 logs/

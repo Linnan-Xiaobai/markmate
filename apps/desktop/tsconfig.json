@@ -22,6 +22,6 @@
       "@markmate/logger/node": ["../../packages/logger/src/node.ts"]
     }
   },
-  "include": ["src"],
+  "include": ["src", "electron"],
   "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx"]
 }

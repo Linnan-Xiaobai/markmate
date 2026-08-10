@@ -75,6 +75,7 @@ declare global {
           external: number;
         }>;
         triggerGC: () => Promise<void>;
+        popupMenu: (x: number, y: number) => Promise<void>;
         onMemoryPressure: (callback: (info: { heapUsed: number; heapTotal: number; rss: number }) => void) => () => void;
         notifySavedForClose: () => void;
       };
@@ -99,6 +100,7 @@ declare global {
       on: {
         fileOpen: (callback: (filePath: string) => void) => () => void;
         folderOpen: (callback: (folderPath: string) => void) => () => void;
+        fileNew: (callback: () => void) => () => void;
         fileSave: (callback: () => void) => () => void;
         fileSaveAs: (callback: () => void) => () => void;
       };

@@ -2,6 +2,11 @@
 chcp 65001 >nul 2>&1
 title MarkMate - Setup Dependencies
 
+:: NOTE: apps/desktop intentionally uses npm (NOT pnpm), although the repo
+:: root is a pnpm workspace. Do NOT add "@markmate/*": "workspace:*"
+:: dependencies to package.json - npm cannot resolve the workspace protocol.
+:: See build/README.md for details.
+
 echo ============================================
 echo   MarkMate - Dependency Setup
 echo ============================================

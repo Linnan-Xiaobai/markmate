@@ -1,6 +1,8 @@
 import { app, BrowserWindow, ipcMain, dialog, Menu, nativeTheme, shell } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs/promises';
+import type { Dirent } from 'node:fs';
+import net from 'node:net';
 import { LogManager, ConsoleTransport, createLogger } from '@markmate/logger';
 import { FileTransport, attachProcessErrorHandlers } from '@markmate/logger/node';
 
@@ -378,7 +380,7 @@ async function readDirectoryRecursive(
 ): Promise<FileItem[]> {
   if (depth > maxDepth) return [];
 
-  let entries: Awaited<ReturnType<typeof fs.readdir>>;
+  let entries: Dirent[];
   try {
     entries = await fs.readdir(dirPath, { withFileTypes: true });
   } catch {
@@ -439,7 +441,7 @@ async function readDirectoryRecursive(
 
 // Read single directory level (for lazy loading)
 async function readDirectoryFlat(dirPath: string): Promise<FileItem[]> {
-  let entries: Awaited<ReturnType<typeof fs.readdir>>;
+  let entries: Dirent[];
   try {
     entries = await fs.readdir(dirPath, { withFileTypes: true });
   } catch {
@@ -476,6 +478,48 @@ async function readDirectoryFlat(dirPath: string): Promise<FileItem[]> {
   });
 
   return items;
+}
+
+// Wait for the Vite dev server to be reachable via TCP.
+// vite-plugin-electron launches Electron before the HTTP server is ready,
+// which causes ERR_FAILED (-2) on the first load. Polling the port is the
+// simplest reliable fix. Tries both IPv4 and IPv6 loopback because Vite may
+// bind to either depending on Node/OS version.
+function waitForDevServer(url: string, timeoutMs = 30000): Promise<void> {
+  const u = new URL(url);
+  const port = parseInt(u.port, 10) || (u.protocol === 'https:' ? 443 : 80);
+  const start = Date.now();
+  const hosts = ['127.0.0.1', '::1', 'localhost'];
+  return new Promise((resolve, reject) => {
+    let lastErr: Error | null = null;
+    const tryConnect = () => {
+      let hostIdx = 0;
+      const tryOne = () => {
+        if (hostIdx >= hosts.length) {
+          if (Date.now() - start > timeoutMs) {
+            reject(new Error(`Dev server ${url} not reachable after ${timeoutMs}ms (last error: ${lastErr?.message ?? 'connection refused'})`));
+          } else {
+            setTimeout(tryConnect, 300);
+          }
+          return;
+        }
+        const host = hosts[hostIdx++];
+        const sock = net.createConnection({ host, port });
+        sock.once('connect', () => {
+          sock.end();
+          logger.info(`[dev] dev server reachable at ${host}:${port}`);
+          resolve();
+        });
+        sock.once('error', (err) => {
+          lastErr = err as Error;
+          sock.destroy();
+          tryOne();
+        });
+      };
+      tryOne();
+    };
+    tryConnect();
+  });
 }
 
 async function createWindow() {
@@ -552,21 +596,22 @@ async function createWindow() {
   });
 
   if (VITE_DEV_SERVER_URL) {
-    // [临时诊断] 捕获渲染进程控制台/崩溃/preload 错误，写入主进程日志
+    logger.info(`[dev] waiting for dev server: ${VITE_DEV_SERVER_URL}`);
+    await waitForDevServer(VITE_DEV_SERVER_URL);
+    logger.info('[dev] dev server ready, loading page');
     mainWindow.webContents.on('console-message', (_e, level, message, line, sourceId) => {
       logger.info(`[renderer:${level}] ${message}`, { line, sourceId });
     });
     mainWindow.webContents.on('render-process-gone', (_e, details) => {
       logger.error('[renderer] process gone', details);
     });
-    mainWindow.webContents.on('did-fail-load', (_e, errorCode, errorDescription) => {
-      logger.error('[renderer] did-fail-load', { errorCode, errorDescription });
+    mainWindow.webContents.on('did-fail-load', (_e, errorCode, errorDescription, validatedURL) => {
+      logger.error('[renderer] did-fail-load', { errorCode, errorDescription, validatedURL });
     });
     mainWindow.webContents.on('preload-error', (_e, preloadPath, error) => {
       logger.error('[preload] error', { preloadPath, error: String(error) });
     });
     await mainWindow.loadURL(VITE_DEV_SERVER_URL);
-    mainWindow.webContents.openDevTools({ mode: 'detach' });
   } else {
     await mainWindow.loadFile(path.join(getDist(), 'index.html'));
   }
@@ -669,12 +714,12 @@ async function createWindow() {
   startMemoryMonitoring();
 }
 
-function createMenu() {
+function getMenuTemplate(): Electron.MenuItemConstructorOptions[] {
   const isMac = process.platform === 'darwin';
 
-  const template: (Electron.MenuItemConstructorOptions | Electron.MenuItem)[] = [
+  return [
     ...(isMac
-      ? [{
+      ? ([{
           label: app.name,
           submenu: [
             { role: 'about' },
@@ -687,7 +732,7 @@ function createMenu() {
             { type: 'separator' },
             { role: 'quit' },
           ],
-        }]
+        }] as Electron.MenuItemConstructorOptions[])
       : []),
     {
       label: '文件',
@@ -719,6 +764,12 @@ function createMenu() {
               mainWindow?.webContents.send('folder:open', result.filePaths[0]);
             }
           },
+        },
+        { type: 'separator' },
+        {
+          label: '新建文件',
+          accelerator: 'Ctrl+N',
+          click: () => mainWindow?.webContents.send('file:new'),
         },
         { type: 'separator' },
         {
@@ -778,7 +829,10 @@ function createMenu() {
       ],
     },
   ];
+}
 
+function createMenu() {
+  const template = getMenuTemplate();
   const menu = Menu.buildFromTemplate(template);
   Menu.setApplicationMenu(menu);
 }
@@ -984,6 +1038,18 @@ function registerIpcHandlers() {
       logger.error('Failed to reset config', error);
     }
     return appConfig;
+  });
+
+  // Popup application menu at specified position
+  ipcMain.handle('menu:popup', async (_event, x: number, y: number) => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    const template = getMenuTemplate();
+    const menu = Menu.buildFromTemplate(template);
+    menu.popup({
+      window: mainWindow,
+      x: Math.round(x),
+      y: Math.round(y),
+    });
   });
 }
 

@@ -7,6 +7,7 @@ import 'katex/dist/katex.min.css';
 import { useTabsStore } from '@/store/use-tabs-store';
 import { useScrollSync, GOTO_HEADING_EVENT } from '@/hooks/use-scroll-sync';
 import type { GotoHeadingDetail } from '@/hooks/use-scroll-sync';
+import { mountMermaidDiagrams } from './MermaidDiagram';
 
 const renderer = new marked.Renderer();
 const originalLinkRenderer = renderer.link.bind(renderer);
@@ -14,6 +15,8 @@ const originalLinkRenderer = renderer.link.bind(renderer);
 // Sequential heading ids (md-h-N) for outline navigation.
 // Order matches extractHeadings() output (both follow marked's parse order).
 let headingIndex = 0;
+// Sequential mermaid diagram ids
+let mermaidIndex = 0;
 
 renderer.heading = (text, level) => {
   const id = `md-h-${headingIndex++}`;
@@ -31,6 +34,12 @@ renderer.link = (href, title, text) => {
 
 // Code block renderer with syntax highlighting
 renderer.code = (code, language) => {
+  // Handle mermaid diagrams
+  if (language === 'mermaid') {
+    const id = `mermaid-${mermaidIndex++}`;
+    return `<div class="mermaid-diagram-placeholder" id="${id}" data-mermaid-code="${encodeURIComponent(code)}"></div>`;
+  }
+
   let highlighted: string;
   let detectedLang = language || '';
 
@@ -45,7 +54,6 @@ renderer.code = (code, language) => {
     highlighted = hljs.highlightAuto(code).value;
     detectedLang = 'auto';
   } else {
-    // Unsupported language, escape and wrap
     highlighted = escapeHtml(code);
   }
 
@@ -68,27 +76,20 @@ marked.setOptions({
   gfm: true,
   breaks: false,
   renderer,
-  // Performance: limit depth to prevent stack overflow on deeply nested content
 });
 
-// KaTeX math support: inline $...$ and block $$...$$
-// throwOnError: false renders invalid formulas as red source text instead of throwing
 marked.use(markedKatex({ throwOnError: false }));
 
-// Rendering tuning based on content size
 const SMALL_CONTENT_MS = 80;
 const LARGE_CONTENT_MS = 300;
-const LARGE_CONTENT_THRESHOLD = 200 * 1024; // 200KB - longer debounce
+const LARGE_CONTENT_THRESHOLD = 200 * 1024;
 
-// Shared marked parser worker pattern not used (keep on main thread for simplicity)
-// KaTeX emits MathML + HTML (with inline style for sizing) and occasional SVG,
-// so enable all three profiles and allow the extra attributes it relies on.
 const DOMPURIFY_CONFIG = {
   USE_PROFILES: { html: true, mathMl: true, svg: true },
-  ADD_TAGS: ['input'],
-  ADD_ATTR: ['checked', 'type', 'disabled', 'rel', 'target', 'data-lang', 'style', 'encoding', 'mathvariant', 'displaystyle', 'xmlns'],
+  ADD_TAGS: ['input', 'foreignObject'],
+  ADD_ATTR: ['checked', 'type', 'disabled', 'rel', 'target', 'data-lang', 'style', 'encoding', 'mathvariant', 'displaystyle', 'xmlns', 'data-mermaid-code', 'viewBox', 'd', 'transform', 'stroke', 'fill', 'stroke-width', 'marker-end', 'id', 'class', 'x', 'y', 'width', 'height', 'rx', 'ry', 'cx', 'cy', 'r', 'points', 'text-anchor', 'dominant-baseline', 'font-size', 'font-family', 'font-weight', 'text-decoration'],
   FORBID_ATTR: ['onerror', 'onload', 'onclick', 'onmouseover'],
-  FORBID_TAGS: ['script', 'style', 'iframe', 'form', 'object', 'embed'],
+  FORBID_TAGS: ['script', 'iframe', 'form', 'object', 'embed'],
 };
 
 export const Preview = memo(function Preview() {
@@ -104,12 +105,10 @@ export const Preview = memo(function Preview() {
   const [html, setHtml] = useState('');
   const [largeFile, setLargeFile] = useState(false);
 
-  // Get scroll container for scroll sync
   const getScrollElement = useCallback(() => {
     return containerRef.current;
   }, []);
 
-  // Enable scroll sync in split mode
   useScrollSync(getScrollElement, 'preview');
 
   const renderMarkdown = useCallback((text: string) => {
@@ -118,9 +117,9 @@ export const Preview = memo(function Preview() {
     setLargeFile(isLarge);
 
     try {
-      // For large content, only render first N chars to preview, or render progressively
       const renderText = isLarge ? text.slice(0, 80000) + '\n\n\n> ⚠️ 文件较大，仅预览前 80KB 内容...' : text;
-      headingIndex = 0; // reset per parse so ids align with extractHeadings order
+      headingIndex = 0;
+      mermaidIndex = 0;
       const rawHtml = marked.parse(renderText) as string;
       const clean = DOMPurify.sanitize(rawHtml, DOMPURIFY_CONFIG);
       setHtml(clean);
@@ -129,9 +128,7 @@ export const Preview = memo(function Preview() {
     }
   }, []);
 
-  // Schedule render with adaptive debounce + requestIdleCallback
   const scheduleRender = useCallback((text: string) => {
-    // Clear pending timers
     if (renderTimerRef.current) clearTimeout(renderTimerRef.current);
     if (idleCallbackRef.current !== null) {
       cancelIdleCallback(idleCallbackRef.current);
@@ -142,7 +139,6 @@ export const Preview = memo(function Preview() {
     const delay = isLarge ? LARGE_CONTENT_MS : SMALL_CONTENT_MS;
 
     renderTimerRef.current = setTimeout(() => {
-      // Use requestIdleCallback if available to render during browser idle time
       if (typeof requestIdleCallback !== 'undefined') {
         idleCallbackRef.current = requestIdleCallback(() => {
           renderMarkdown(text);
@@ -164,13 +160,20 @@ export const Preview = memo(function Preview() {
     };
   }, [content, scheduleRender]);
 
-  // Initial render
   useEffect(() => {
     renderMarkdown(content);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Outline navigation: scroll to heading by index (md-h-N)
+  useEffect(() => {
+    if (html && containerRef.current) {
+      const timer = setTimeout(() => {
+        mountMermaidDiagrams(containerRef.current!);
+      }, 80);
+      return () => clearTimeout(timer);
+    }
+  }, [html]);
+
   useEffect(() => {
     const handler = (e: Event) => {
       const { headingIndex: idx } = (e as CustomEvent<GotoHeadingDetail>).detail;
@@ -179,7 +182,6 @@ export const Preview = memo(function Preview() {
         el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
         return !!el;
       };
-      // Preview may still be debounce-rendering; retry once if missing
       if (!scrollTo()) {
         setTimeout(scrollTo, 200);
       }
